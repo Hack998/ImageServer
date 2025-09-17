@@ -16,12 +16,12 @@ clean:
 
 install: all
 	@echo "[*] Ejecutando script de instalación..."
-	@bash install.sh
+	@bash ./scripts/install.sh
 
 uninstall:
 	@echo "[*] Ejecutando script de desinstalación..."
-	@bash uninstall.sh
+	@bash ./scripts/uninstall.sh
 
 purge:
 	@echo "[*] Ejecutando script de PURGE (limpieza total)..."
-	@bash purge.sh
+	@bash ./scripts/purge.sh

@@ -139,9 +139,14 @@ sudo systemctl restart imageserver
 ```bash
 sudo systemctl stop imageserver
 ```
-### Logs en vivo (servicio)
+### Logs en vivo (Server)
 ```bash
 sudo journalctl -u imageserver -f
+```
+
+### Logs en vivo (Interacion con Cliente)
+```bash
+sudo tail -f /var/log/server/image_server.log
 ```
 
 

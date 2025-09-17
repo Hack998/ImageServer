@@ -1,0 +1,16 @@
+[Unit]
+Description=Image Processing Server (Histogram Equalization and Classification)
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/server
+Restart=on-failure
+User=imageserver
+Group=imageserver
+WorkingDirectory=/var/lib/server
+StandardOutput=append:/var/log/server/imageserver.log
+StandardError=append:/var/log/server/imageserver.log
+
+[Install]
+WantedBy=multi-user.target

@@ -1,3 +1,4 @@
+#include <arpa/inet.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -70,12 +71,12 @@ static void *client_handler(void *arg)
 
     if (fsize > 20 * 1024 * 1024)
     {
-        (void)write(fd, "ERROR too large\n", 16);
+        write(fd, "ERROR too large\n", 16);
         close(fd);
         return NULL;
     }
 
-    (void)write(fd, "READY\n", 6);
+    write(fd, "READY\n", 6);
 
     char *buf = malloc(fsize);
     if (!buf)
@@ -107,12 +108,12 @@ static void *client_handler(void *arg)
     {
         char reply[600];
         snprintf(reply, sizeof(reply), "OK %s %s\n", category, outpath);
-        (void)write(fd, reply, strlen(reply));
+        write(fd, reply, strlen(reply));
         log_request(ip, filename, fsize, category, outpath, 1);
     }
     else
     {
-        (void)write(fd, "ERROR processing\n", 17);
+        write(fd, "ERROR processing\n", 17);
         log_request(ip, filename, fsize, "-", "-", 0);
     }
 

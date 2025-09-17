@@ -2,55 +2,70 @@
 set -e
 
 SERVICE_NAME=imageserver
+BIN_SERVER=server
+BIN_CLIENT=client
 BIN_DIR=/usr/local/bin
 CONFIG_DIR=/etc/server
-CONFIG_FILE=$CONFIG_DIR/config.conf
 LOG_DIR=/var/log/server
-LOG_FILE=$LOG_DIR/imageserver.log
 DATA_DIR=/var/lib/server
+SYSTEMD_UNIT=/etc/systemd/system/$SERVICE_NAME.service
 
-echo "[*] Compilando proyecto..."
-make clean
-make
+echo "[*] Instalando servidor y cliente..."
 
-echo "[*] Instalando binarios en $BIN_DIR..."
-sudo install -m 755 server $BIN_DIR/$SERVICE_NAME
-sudo install -m 755 client $BIN_DIR/client
+# Copiar binarios
+sudo cp -f $BIN_SERVER $BIN_DIR/
+sudo cp -f $BIN_CLIENT $BIN_DIR/
+sudo chmod 755 $BIN_DIR/$BIN_SERVER $BIN_DIR/$BIN_CLIENT
 
-echo "[*] Creando directorio de configuración en $CONFIG_DIR..."
-sudo mkdir -p $CONFIG_DIR
-
-if [ ! -f "$CONFIG_FILE" ]; then
-    echo "[*] Copiando configuración por defecto..."
-    sudo cp config/config.conf $CONFIG_FILE
-else
-    echo "[*] Configuración existente detectada, no se sobrescribe."
+# Crear usuario/grupo si no existen
+if ! id -u $SERVICE_NAME >/dev/null 2>&1; then
+    echo "[*] Creando usuario $SERVICE_NAME..."
+    sudo useradd -r -s /bin/false $SERVICE_NAME
 fi
 
-echo "[*] Creando directorio de logs en $LOG_DIR..."
-sudo mkdir -p $LOG_DIR
-sudo touch $LOG_FILE
-sudo chown root:adm $LOG_FILE
-sudo chmod 664 $LOG_FILE
+# Crear directorios necesarios
+echo "[*] Creando directorios..."
+sudo mkdir -p $CONFIG_DIR $LOG_DIR $DATA_DIR
+sudo touch $CONFIG_DIR/config.conf
+sudo touch $LOG_DIR/$SERVICE_NAME.log
+sudo chown -R $SERVICE_NAME:$SERVICE_NAME $CONFIG_DIR $LOG_DIR $DATA_DIR
 
-echo "[*] Creando directorios de clasificación en $DATA_DIR..."
-sudo mkdir -p $DATA_DIR/green
-sudo mkdir -p $DATA_DIR/red
-sudo mkdir -p $DATA_DIR/blue
-sudo chown -R root:adm $DATA_DIR
-sudo chmod -R 775 $DATA_DIR
+# Copiar unidad systemd
+echo "[*] Instalando unidad systemd..."
+sudo tee $SYSTEMD_UNIT > /dev/null <<EOL
+[Unit]
+Description=Image Processing Server (Histogram Equalization and Classification)
+After=network.target
 
-echo "[*] Instalando servicio systemd..."
-sudo cp systemd/imageserver.service /etc/systemd/system/$SERVICE_NAME.service
+[Service]
+Type=simple
+ExecStart=$BIN_DIR/$BIN_SERVER
+Restart=on-failure
+User=$SERVICE_NAME
+Group=$SERVICE_NAME
+WorkingDirectory=$DATA_DIR
+StandardOutput=append:$LOG_DIR/$SERVICE_NAME.log
+StandardError=append:$LOG_DIR/$SERVICE_NAME.log
 
+[Install]
+WantedBy=multi-user.target
+EOL
+
+# Recargar systemd
 echo "[*] Recargando systemd..."
 sudo systemctl daemon-reload
 
-echo "[*] Habilitando servicio para iniciar en el arranque..."
+# Habilitar servicio al arranque
+echo "[*] Habilitando servicio..."
 sudo systemctl enable $SERVICE_NAME
 
+# Iniciar servicio
 echo "[*] Iniciando servicio..."
-sudo systemctl restart $SERVICE_NAME
+sudo systemctl start $SERVICE_NAME
 
 echo "[✔] Instalación completada."
-echo "Usa 'systemctl status $SERVICE_NAME' para verificar el estado."
+echo ""
+echo "Puedes verificar el estado con:"
+echo "  systemctl status $SERVICE_NAME"
+echo ""
+echo "Logs disponibles en: $LOG_DIR/$SERVICE_NAME.log"

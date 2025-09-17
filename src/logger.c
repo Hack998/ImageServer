@@ -5,7 +5,7 @@
 void log_request(const char *ip, const char *file, long size,
                  const char *cat, const char *out, int ok)
 {
-    FILE *f = fopen("/var/log/image_server.log", "a");
+    FILE *f = fopen("/var/log/server/image_server.log", "a");
     if (!f)
         return;
     time_t now = time(NULL);
