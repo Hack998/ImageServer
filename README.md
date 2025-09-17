@@ -36,6 +36,7 @@
 - `scripts/` contiene scripts de instalacion, desinstalar y test
 - `src/` contiene los programas (C)
 - `systemd/` contiene el documento de servicio
+- `stb_image.h` y `stb_image_write.h` provienen de https://github.com/nothings/stb
 
 ---
 
@@ -86,9 +87,9 @@ Deja el server corriendo
 
 ### Paso 3: Enviar imagen
 ```bash
-sudo ./client 127.0.0.1 1717 test.jpg
+sudo ./client 127.0.0.1 1717
 ```
-Cambiar `test.jpg` por la imagen que se desea probar
+Las imagenes tiene que estar en la misma direccion que el ejecutable.
 
 ---
 ## 5. Test (red/servicio)
@@ -116,9 +117,9 @@ sudo make
 ```
 ### Paso 5: En el computador cliente, enviar imagen
 ```bash
-sudo ./client 192.169.1.50 1717 test.jpg
+sudo ./client 192.169.1.50 1717
 ```
-Cambiar `test.jpg` por la imagen que se desea probar
+Las imagenes tiene que estar en la misma direccion que el ejecutable.
 
 ---
 
