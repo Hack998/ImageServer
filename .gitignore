@@ -1,0 +1,9 @@
+/.vscode
+/client
+/server
+/server_test.log
+/systemd
+/test.jpg
+/test_blue.jpg
+/test_green.jpg
+/test_red.jpg
