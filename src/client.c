@@ -1,82 +1,157 @@
+#include <arpa/inet.h>
+#include <netinet/in.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <arpa/inet.h>
 #include <sys/stat.h>
 #include <fcntl.h>
-#include <errno.h>
 
-static void send_file(const char *server, int port, const char *path)
+#define BUF_SIZE 4096
+
+static int send_file(const char *ip, int port, const char *filename)
 {
-    int fd = socket(AF_INET, SOCK_STREAM, 0);
-    struct sockaddr_in addr = {0};
-    addr.sin_family = AF_INET;
-    addr.sin_port = htons(port);
-    inet_pton(AF_INET, server, &addr.sin_addr);
-    if (connect(fd, (struct sockaddr *)&addr, sizeof(addr)) < 0)
+    int sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    if (sockfd < 0)
+    {
+        perror("socket");
+        return -1;
+    }
+
+    struct sockaddr_in servaddr = {0};
+    servaddr.sin_family = AF_INET;
+    servaddr.sin_port = htons(port);
+    if (inet_pton(AF_INET, ip, &servaddr.sin_addr) <= 0)
+    {
+        perror("inet_pton");
+        close(sockfd);
+        return -1;
+    }
+
+    if (connect(sockfd, (struct sockaddr *)&servaddr, sizeof(servaddr)) < 0)
     {
         perror("connect");
-        return;
+        close(sockfd);
+        return -1;
     }
 
+    // Obtener tamaño del archivo
     struct stat st;
-    if (stat(path, &st) < 0)
+    if (stat(filename, &st) < 0)
     {
         perror("stat");
-        close(fd);
-        return;
+        close(sockfd);
+        return -1;
     }
-    uint32_t nlen = htonl(strlen(path));
-    uint64_t fsize = htobe64(st.st_size);
+    uint64_t filesize = st.st_size;
 
-    write(fd, &nlen, 4);
-    write(fd, path, strlen(path));
-    write(fd, &fsize, 8);
-
-    char buf[64];
-    int r = read(fd, buf, sizeof(buf) - 1);
-    buf[r] = '\0';
-    if (strncmp(buf, "READY", 5) != 0)
+    // Enviar nombre
+    uint32_t name_len = strlen(filename);
+    uint32_t name_len_net = htonl(name_len);
+    if (write(sockfd, &name_len_net, sizeof(name_len_net)) != sizeof(name_len_net) ||
+        write(sockfd, filename, name_len) != (ssize_t)name_len)
     {
-        printf("Server error: %s\n", buf);
-        close(fd);
-        return;
+        perror("write filename");
+        close(sockfd);
+        return -1;
     }
 
-    int infd = open(path, O_RDONLY);
-    char block[4096];
-    ssize_t n;
-    while ((n = read(infd, block, sizeof(block))) > 0)
+    // Enviar tamaño
+    uint64_t size_net = htobe64(filesize);
+    if (write(sockfd, &size_net, sizeof(size_net)) != sizeof(size_net))
     {
-        write(fd, block, n);
+        perror("write size");
+        close(sockfd);
+        return -1;
     }
-    close(infd);
 
-    r = read(fd, buf, sizeof(buf) - 1);
-    if (r > 0)
+    // Esperar READY
+    char resp[64];
+    int n = read(sockfd, resp, sizeof(resp) - 1);
+    if (n <= 0)
     {
-        buf[r] = '\0';
-        printf("Response: %s\n", buf);
+        perror("read READY");
+        close(sockfd);
+        return -1;
     }
-    else
-        printf("No response.\n");
+    resp[n] = '\0';
+    if (strncmp(resp, "READY", 5) != 0)
+    {
+        fprintf(stderr, "Server error: %s\n", resp);
+        close(sockfd);
+        return -1;
+    }
 
+    // Enviar archivo
+    int fd = open(filename, O_RDONLY);
+    if (fd < 0)
+    {
+        perror("open file");
+        close(sockfd);
+        return -1;
+    }
+
+    char buf[BUF_SIZE];
+    ssize_t r;
+    while ((r = read(fd, buf, sizeof(buf))) > 0)
+    {
+        if (write(sockfd, buf, r) != r)
+        {
+            perror("write file");
+            close(fd);
+            close(sockfd);
+            return -1;
+        }
+    }
     close(fd);
+
+    // Leer respuesta final
+    n = read(sockfd, resp, sizeof(resp) - 1);
+    if (n > 0)
+    {
+        resp[n] = '\0';
+        printf("Server reply: %s\n", resp);
+    }
+
+    close(sockfd);
+    return 0;
 }
 
 int main(int argc, char *argv[])
 {
-    if (argc < 4)
+    if (argc != 3)
     {
-        printf("Usage: %s <server> <port> <image1> [image2..]\n", argv[0]);
+        fprintf(stderr, "Uso: %s <server_ip> <port>\n", argv[0]);
         return 1;
     }
-    char *server = argv[1];
+
+    const char *server_ip = argv[1];
     int port = atoi(argv[2]);
-    for (int i = 3; i < argc; i++)
+
+    char input[512];
+    while (1)
     {
-        send_file(server, port, argv[i]);
+        printf("Enter image path (or Exit to quit): ");
+        fflush(stdout);
+
+        if (!fgets(input, sizeof(input), stdin))
+            break;
+
+        // Eliminar salto de línea
+        input[strcspn(input, "\n")] = '\0';
+
+        if (strcasecmp(input, "Exit") == 0)
+        {
+            printf("Exiting client.\n");
+            break;
+        }
+
+        if (strlen(input) == 0)
+            continue;
+
+        send_file(server_ip, port, input);
     }
+
     return 0;
 }
